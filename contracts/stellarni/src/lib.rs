@@ -7,7 +7,6 @@ pub struct SimpleTransfer;
 
 #[contractimpl]
 impl SimpleTransfer {
-    /// Transfer tokens from `from` to `to`
     pub fn send(
         env: Env,
         token: Address,
@@ -15,10 +14,13 @@ impl SimpleTransfer {
         to: Address,
         amount: i128,
     ) {
-        // Require authorization from sender
         from.require_auth();
 
         let client = token::Client::new(&env, &token);
+
+        // safer explicit transfer
         client.transfer(&from, &to, &amount);
+
+        
     }
 }
