@@ -1,4 +1,4 @@
-# Stellaroid Earn 💸🎓
+# Stellarni 💸🎓
 
 **On-chain Credential Verification + PDF Document Signing + Payments (Soroban / Stellar)**
 
