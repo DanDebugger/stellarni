@@ -1,54 +1,37 @@
-```rust
 #![cfg(test)]
 
 use soroban_sdk::{
     testutils::Address as _,
-    Address, Env, BytesN, Vec,
+    Address, Env, BytesN,
 };
 
 use crate::{StellaroidEarn, StellaroidEarnClient};
 
 // -------------------------------------
-// Test 1: Happy path (document signing)
+// Test 1: Register certificate success
 // -------------------------------------
 #[test]
-fn test_document_signing_flow() {
+fn test_register_certificate_success() {
     let env = Env::default();
     env.mock_all_auths();
 
-    // Deploy contract
     let contract_id = env.register_contract(None, StellaroidEarn);
     let client = StellaroidEarnClient::new(&env, &contract_id);
 
-    // Create actors
     let student = Address::generate(&env);
-    let employer = Address::generate(&env);
-
-    // Create document hash
     let hash = BytesN::from_array(&env, &[1; 32]);
 
-    // Define required signers
-    let mut signers = Vec::new(&env);
-    signers.push_back(student.clone());
-    signers.push_back(employer.clone());
+    client.register_certificate(&hash, &student);
 
-    // Create document
-    client.create_document(&hash, &signers);
-
-    // Both parties sign
-    client.sign_document(&hash, &student);
-    client.sign_document(&hash, &employer);
-
-    // Assert fully signed
-    assert_eq!(client.is_fully_signed(&hash), true);
+    assert_eq!(client.verify_certificate(&hash, &student), true);
 }
 
 // -------------------------------------
-// Test 2: Unauthorized signer (edge case)
+// Test 2: Duplicate certificate (panic)
 // -------------------------------------
 #[test]
 #[should_panic]
-fn test_unauthorized_signer() {
+fn test_duplicate_certificate() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -56,25 +39,19 @@ fn test_unauthorized_signer() {
     let client = StellaroidEarnClient::new(&env, &contract_id);
 
     let student = Address::generate(&env);
-    let fake = Address::generate(&env);
-
     let hash = BytesN::from_array(&env, &[2; 32]);
 
-    // Only student is allowed signer
-    let mut signers = Vec::new(&env);
-    signers.push_back(student.clone());
+    client.register_certificate(&hash, &student);
 
-    client.create_document(&hash, &signers);
-
-    // Fake signer tries to sign → should panic
-    client.sign_document(&hash, &fake);
+    // duplicate should fail
+    client.register_certificate(&hash, &student);
 }
 
 // -------------------------------------
-// Test 3: Full flow validation
+// Test 3: State verification
 // -------------------------------------
 #[test]
-fn test_full_flow_payment_after_sign() {
+fn test_certificate_verification_state() {
     let env = Env::default();
     env.mock_all_auths();
 
@@ -82,20 +59,9 @@ fn test_full_flow_payment_after_sign() {
     let client = StellaroidEarnClient::new(&env, &contract_id);
 
     let student = Address::generate(&env);
-    let employer = Address::generate(&env);
-
     let hash = BytesN::from_array(&env, &[3; 32]);
 
-    let mut signers = Vec::new(&env);
-    signers.push_back(student.clone());
-    signers.push_back(employer.clone());
+    client.register_certificate(&hash, &student);
 
-    client.create_document(&hash, &signers);
-
-    client.sign_document(&hash, &student);
-    client.sign_document(&hash, &employer);
-
-    // Validate final state
-    assert!(client.is_fully_signed(&hash));
+    assert!(client.verify_certificate(&hash, &student));
 }
-
