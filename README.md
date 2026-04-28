@@ -9,6 +9,13 @@ Stellaroid Earn is a Soroban smart contract system that allows students to regis
 # 🧩 Problem
 
 A graduating student in the Philippines cannot easily prove their credentials to employers or access financial opportunities, forcing them to rely on manual verification that delays hiring and limits income.
+📊 Impact Data (REAL-WORLD CONTEXT):
+🎓 The Philippines produces ~500,000+ college graduates per year, but many struggle to transition into formal employment due to verification and hiring delays (CHED reports / labor statistics trends)
+⏳ Entry-level hiring in the Philippines often takes 1–3 weeks due to manual background and credential checks (HR outsourcing and BPO hiring practices)
+📄 Employers report high cases of unverifiable or incomplete academic records, especially for first-job applicants
+💸 A delay of even 2 weeks in hiring can equal ~10–25% of monthly income loss for entry-level workers (₱10,000–₱25,000/month range)
+🏢 Many SMEs still rely on manual document checking (email, school verification calls, paper submissions)
+
 
 ---
 
