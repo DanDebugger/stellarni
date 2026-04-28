@@ -1,22 +1,213 @@
-# Soroban Project
+# Stellaroid Earn 💸🎓
 
-## Project Structure
+**On-chain Credential Verification + PDF Document Signing + Payments (Soroban / Stellar)**
 
-This repository uses the recommended structure for a Soroban project:
+Stellaroid Earn is a Soroban smart contract system that allows students to register academic credentials, upload and verify document hashes (PDF certificates/contracts), and enable secure signing and payments between students and employers on the Stellar network.
 
-```text
-.
-├── contracts
-│   └── hello_world
-│       ├── src
-│       │   ├── lib.rs
-│       │   └── test.rs
-│       └── Cargo.toml
-├── Cargo.toml
-└── README.md
+---
+
+# 🧩 Problem
+
+A graduating student in the Philippines cannot easily prove their credentials to employers or access financial opportunities, forcing them to rely on manual verification that delays hiring and limits income.
+
+---
+
+# 💡 Solution
+
+Stellaroid Earn stores **PDF document hashes on-chain**, allowing students, schools, and employers to **verify, sign, and validate credentials instantly**, and triggers secure XLM/token payments once verification is complete.
+
+---
+
+# 📁 Project Overview
+
+This system enables:
+
+* 📄 PDF/document hashing (off-chain → on-chain proof)
+* 🎓 Certificate registration linked to wallet identity
+* ✍️ Multi-party document signing (student, employer, institution)
+* 🔍 Instant verification on-chain
+* 💸 Automated reward and payment flows using Stellar tokens
+
+---
+
+# ⚙️ Setup
+
+## 1. Install Requirements
+
+```bash id="a1k8sd"
+cargo install stellar-cli
+rustup target add wasm32v1-none
 ```
 
-- New Soroban contracts can be put in `contracts`, each in their own directory. There is already a `hello_world` contract in there to get you started.
-- If you initialized this project with any other example contracts via `--with-example`, those contracts will be in the `contracts` directory as well.
-- Contracts should have their own `Cargo.toml` files that rely on the top-level `Cargo.toml` workspace for their dependencies.
-- Frontend libraries can be added to the top-level directory as well. If you initialized this project with a frontend template via `--frontend-template` you will have those files already included.
+---
+
+## 2. Build Contract
+
+```bash id="b2m9kl"
+cargo build --target wasm32v1-none --release
+```
+
+Output:
+
+```text id="c3z1aa"
+target/wasm32v1-none/release/stellarni.wasm
+```
+
+---
+
+## 3. Configure Network
+
+```bash id="d4c2ld"
+stellar network add testnet \
+  --rpc-url https://soroban-testnet.stellar.org \
+  --network-passphrase "Test SDF Network ; September 2015"
+```
+
+---
+
+## 4. Deploy Contract
+
+```bash id="e5p3km"
+stellar contract deploy \
+  --wasm /app/target/wasm32v1-none/release/stellarni.wasm \
+  --source stellar-ide-default \
+  --network testnet \
+  --alias 1cdd1acc-stellarni \
+  --salt 3c113862eb5388c78824ab73712d52edcc75bbb4635de316857d059f40d8f138
+```
+
+---
+
+# 📌 Deployment Result
+
+### 🆕 Latest Contract ID
+
+```text id="f6d9sa"
+CD4KOP52GTYZAWXTGI37CFJKRXR3K6VVOO7Z26AXNBT3SU3MLPDZUXH6
+```
+
+### 🔗 Transaction
+
+https://stellar.expert/explorer/testnet/tx/47bd3a591ab8e71c9841c53c2f02fafadcf36c4d0d91268afa54f449f6cfb322
+
+### 🔗 Contract
+
+https://lab.stellar.org/r/testnet/contract/CD4KOP52GTYZAWXTGI37CFJKRXR3K6VVOO7Z26AXNBT3SU3MLPDZUXH6
+
+---
+
+# 🚀 Core Usage Flow (PDF Credential System)
+
+## 🔹 Step 1: Student uploads PDF (off-chain)
+
+* PDF is hashed (SHA-256)
+* Hash is sent to contract
+
+## 🔹 Step 2: Register Credential
+
+```bash id="g7v1qa"
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source <STUDENT> \
+  --network testnet \
+  -- register_certificate \
+  --hash <PDF_HASH> \
+  --owner <STUDENT_ADDRESS>
+```
+
+---
+
+## 🔹 Step 3: Employer verifies credential
+
+```bash id="h8v2qa"
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source <EMPLOYER> \
+  --network testnet \
+  -- verify_certificate \
+  --hash <PDF_HASH> \
+  --user <STUDENT_ADDRESS>
+```
+
+---
+
+## 🔹 Step 4: Multi-party signing (PDF contract flow)
+
+* Student signs document
+* Employer signs document
+* Institution optionally signs
+
+---
+
+## 🔹 Step 5: Payment triggered
+
+```bash id="i9v3qa"
+stellar contract invoke \
+  --id <CONTRACT_ID> \
+  --source <EMPLOYER> \
+  --network testnet \
+  -- link_payment \
+  --token <TOKEN_ID> \
+  --employer <EMPLOYER_ADDRESS> \
+  --student <STUDENT_ADDRESS> \
+  --amount 500
+```
+
+---
+
+# 🧠 Explanation
+
+## 🔹 How PDF verification works
+
+1. PDF file never goes on-chain
+2. Only its **hash is stored on Soroban**
+3. If hash matches → document is valid
+4. If any change → hash mismatch → invalid
+
+👉 This makes credentials **tamper-proof**
+
+---
+
+## 🔹 Why this solves the problem
+
+Instead of:
+
+* emailing PDFs
+* manual HR verification
+* delayed hiring
+
+Now:
+
+* instant verification
+* trustless proof
+* automatic payment flow
+
+---
+
+# 🔐 Security Notes
+
+* Requires wallet authorization (`require_auth`)
+* PDF is never stored on-chain (only hash)
+* Prevents duplicate credential registration
+* Verification is deterministic (no human needed)
+
+---
+
+# 📌 Summary
+
+Stellaroid Earn is:
+
+* 🎓 Credential verification system
+* 📄 PDF hash-based document proof layer
+* ✍️ Multi-signature agreement flow
+* 💸 Payment automation system on Stellar
+
+---
+
+# 🚀 Future Improvements
+
+* IPFS PDF storage integration
+* Real-time employer dashboard
+* Signature expiration / revocation
+* On-chain credential NFT representation
+* Mobile-first verification app
