@@ -1,0 +1,14 @@
+/Users/dangreyconcepcion/stellarni/target/debug/deps/serde-328d9554ff799d24.d: /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dangreyconcepcion/stellarni/target/debug/build/serde-c3483e397bc8d057/out/private.rs
+
+/Users/dangreyconcepcion/stellarni/target/debug/deps/libserde-328d9554ff799d24.rlib: /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dangreyconcepcion/stellarni/target/debug/build/serde-c3483e397bc8d057/out/private.rs
+
+/Users/dangreyconcepcion/stellarni/target/debug/deps/libserde-328d9554ff799d24.rmeta: /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dangreyconcepcion/stellarni/target/debug/build/serde-c3483e397bc8d057/out/private.rs
+
+/Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/dangreyconcepcion/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/dangreyconcepcion/stellarni/target/debug/build/serde-c3483e397bc8d057/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/dangreyconcepcion/stellarni/target/debug/build/serde-c3483e397bc8d057/out

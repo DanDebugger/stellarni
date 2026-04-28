@@ -1,0 +1,1 @@
+/Users/dangreyconcepcion/stellarni/target/wasm32v1-none/release/stellarni.wasm: /Users/dangreyconcepcion/stellarni/contracts/stellarni/src/lib.rs /Users/dangreyconcepcion/stellarni/contracts/stellarni/src/test.rs
