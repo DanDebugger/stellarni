@@ -90,16 +90,15 @@ stellar contract deploy \
 ### 🆕 Latest Contract ID
 
 ```text id="f6d9sa"
-CDMIMOLX3D5XATS4K4V6UZTNZW4GU7SFGC4ZZE73ZJJ3SYHDM3D4TUX4
+CCVWUQ5QRQFN7FMFZ3NZLLRODLVQ24C6XYCXBIWQP2TCVORMCBYRPBXM
 ```
 
 ### 🔗 Transaction
 
-https://stellar.expert/explorer/testnet/tx/9743253570088960#9743253570088961
+[https://stellar.expert/explorer/testnet/tx/9743253570088960#9743253570088961]
 ### 🔗 Contract
 
-https://lab.stellar.org/r/testnet/contract/CDMIMOLX3D5XATS4K4V6UZTNZW4GU7SFGC4ZZE73ZJJ3SYHDM3D4TUX4
-
+[ttps://lab.stellar.org/r/testnet/contract/CDMIMOLX3D5XATS4K4V6UZTNZW4GU7SFGC4ZZE73ZJJ3SYHDM3D4TUX4]
 ---
 
 # 🚀 Core Usage Flow (PDF Credential System)
