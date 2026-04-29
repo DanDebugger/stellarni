@@ -1,3 +1,17 @@
+# Frontend ui
+1. upload file student
+<img width="1917" height="956" alt="ui1" src="https://github.com/user-attachments/assets/3b5456b5-e1ef-4196-8da5-90322ff80720" />
+
+2. Credential Verification
+<img width="1293" height="955" alt="ui2" src="https://github.com/user-attachments/assets/a829a910-08f7-46ba-aff4-abdf80e35c79" />
+
+3. Cryptographically Valid
+<img width="738" height="847" alt="ui3" src="https://github.com/user-attachments/assets/8569331d-4f44-4e29-b7c0-84070e2e1926" />
+
+4. Certificates Issued
+<img width="668" height="589" alt="Screenshot 2026-04-29 at 2 18 17 PM" src="https://github.com/user-attachments/assets/65e9b836-4ab2-48aa-a924-97616ecc0f9b" />
+
+
 # Vercel Link
 http://stellarni.vercel.app/
 
