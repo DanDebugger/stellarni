@@ -87,76 +87,72 @@ stellar contract deploy \
 
 # 📌 Deployment Result
 
-### 🆕 Latest Contract ID
+### 🆕 Current Contract ID (Frontend Config)
 
 ```text id="f6d9sa"
-CCVWUQ5QRQFN7FMFZ3NZLLRODLVQ24C6XYCXBIWQP2TCVORMCBYRPBXM
+CBN7T673P4N4QI3AO2ONDAQAX3FUUF7IAORZ6V5KJO7MKCCUB5V7ADC4
 ```
 
-### 🔗 Transaction
+### 🔗 Example Reward Transaction
 
-[https://stellar.expert/explorer/testnet/tx/9743253570088960#9743253570088961]
+[https://stellar.expert/explorer/testnet/tx/4c20e27447d2562ad6a96f95e9b1189b7d6f0e5873b42a795955045ba88fdac2](https://stellar.expert/explorer/testnet/tx/4c20e27447d2562ad6a96f95e9b1189b7d6f0e5873b42a795955045ba88fdac2)
 ### 🔗 Contract
 
-https://lab.stellar.org/r/testnet/contract/CCVWUQ5QRQFN7FMFZ3NZLLRODLVQ24C6XYCXBIWQP2TCVORMCBYRPBXM
----
-
-# 🚀 Core Usage Flow (PDF Credential System)
-
-## 🔹 Step 1: Student uploads PDF (off-chain)
-
-* PDF is hashed (SHA-256)
-* Hash is sent to contract
-
-## 🔹 Step 2: Register Credential
-
-```bash id="g7v1qa"
-stellar contract invoke \
-  --id <CONTRACT_ID> \
-  --source <STUDENT> \
-  --network testnet \
-  -- register_certificate \
-  --hash <PDF_HASH> \
-  --owner <STUDENT_ADDRESS>
-```
+[https://lab.stellar.org/r/testnet/contract/CBN7T673P4N4QI3AO2ONDAQAX3FUUF7IAORZ6V5KJO7MKCCUB5V7ADC4](https://lab.stellar.org/r/testnet/contract/CBN7T673P4N4QI3AO2ONDAQAX3FUUF7IAORZ6V5KJO7MKCCUB5V7ADC4)
 
 ---
 
-## 🔹 Step 3: Employer verifies credential
+# 🚀 Current System Flow (Frontend + Backend + Soroban)
 
-```bash id="h8v2qa"
-stellar contract invoke \
-  --id <CONTRACT_ID> \
-  --source <EMPLOYER> \
-  --network testnet \
-  -- verify_certificate \
-  --hash <PDF_HASH> \
-  --user <STUDENT_ADDRESS>
-```
+## 1) Authentication flow
 
----
+1. User opens app and sees **Sign In / Sign Up** page.
+2. User authenticates via:
+   - Email + password (local MVP auth), or
+   - Google sign-in (client-side flow).
+3. After auth, user selects role:
+   - **Student**
+   - **Employer**
 
-## 🔹 Step 4: Multi-party signing (PDF contract flow)
+## 2) Student flow
 
-* Student signs document
-* Employer signs document
-* Institution optionally signs
+1. Student uploads credential PDF (off-chain).
+2. Frontend computes **SHA-256 hash** of the file.
+3. Student submits credential record to shared storage (`/api/credentials`), including:
+   - student details
+   - hash
+   - target employer wallet
+4. Student tracks status from sidebar pages:
+   - **Verification Timeline**
+   - **Certificates Issued**
+   - **Transaction History** (clickable StellarExpert tx links)
+5. If employer assigns a task, student clicks **Finish Task** and submits accomplishment notes.
 
----
+## 3) Employer flow
 
-## 🔹 Step 5: Payment triggered
+1. Employer sees applicants in dashboard table.
+2. Employer selects hash and runs **Verify Authenticity**.
+3. Employer signs credential (on-chain when function exists, with compatibility fallbacks).
+4. Employer assigns task to student.
+5. After student finishes task:
+   - Employer issues certificate name + notes + PDF
+   - Employer releases reward payment (e.g. 100 XLM)
+6. Reward transaction hash is stored and becomes visible to student in certificate details and history.
 
-```bash id="i9v3qa"
-stellar contract invoke \
-  --id <CONTRACT_ID> \
-  --source <EMPLOYER> \
-  --network testnet \
-  -- link_payment \
-  --token <TOKEN_ID> \
-  --employer <EMPLOYER_ADDRESS> \
-  --student <STUDENT_ADDRESS> \
-  --amount 500
-```
+## 4) Cross-browser data sync
+
+- Credential records are stored through backend API (`http://127.0.0.1:3000/api/...`) so different browsers can see the same data.
+- Frontend keeps a local fallback for MVP resilience when backend is unavailable.
+- Dashboard pages auto-refresh and listen for credential update events.
+
+## 5) Contract invocation note
+
+Current contract exports used in the frontend integration:
+- `register`
+- `verify`
+- `pay_reward`
+
+The frontend Soroban utility includes compatibility attempts for different contract versions to avoid blocking the UX when function names/signatures differ.
 
 ---
 
@@ -173,7 +169,7 @@ stellar contract invoke \
 
 ---
 
-## 🔹 Why this solves the problem
+## 🔹 Why this solves the problem now
 
 Instead of:
 
@@ -181,11 +177,12 @@ Instead of:
 * manual HR verification
 * delayed hiring
 
-Now:
+Now with the current app flow:
 
-* instant verification
-* trustless proof
-* automatic payment flow
+* student and employer have role-specific dashboards
+* credentials are shared across browsers via backend API
+* issued certificate and transaction history are visible to students
+* payment flow remains anchored to Stellar transactions
 
 ---
 
