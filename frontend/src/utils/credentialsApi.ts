@@ -1,6 +1,6 @@
 import type { Credential } from '../pages/EmployerDashboard';
 
-const API_BASE = 'http://127.0.0.1:3000';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000';
 const STORAGE_KEY = 'stellarni_credentials';
 const MEMORY_KEY = '__stellarni_credentials_memory__';
 const UPDATE_EVENT = 'stellarni-credentials-updated';

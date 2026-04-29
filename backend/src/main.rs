@@ -108,9 +108,14 @@ async fn main() {
         .layer(cors)
         .with_state(state);
 
-    let addr = "127.0.0.1:3000";
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(3000);
+    let addr = format!("0.0.0.0:{}", port);
+    
     println!("Stellarni Auth Backend running on http://{}", addr);
-    let listener = TcpListener::bind(addr).await.unwrap();
+    let listener = TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
