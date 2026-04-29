@@ -1,0 +1,50 @@
+{
+  "hash": "9405ecef",
+  "configHash": "6bd387aa",
+  "lockfileHash": "fe2ed822",
+  "browserHash": "0a70ae79",
+  "optimized": {
+    "@stellar/freighter-api": {
+      "src": "../../node_modules/@stellar/freighter-api/build/index.min.js",
+      "file": "@stellar_freighter-api.js",
+      "fileHash": "c5e6f0ec",
+      "needsInterop": true
+    },
+    "@stellar/stellar-sdk": {
+      "src": "../../node_modules/@stellar/stellar-sdk/dist/stellar-sdk.min.js",
+      "file": "@stellar_stellar-sdk.js",
+      "fileHash": "72cd9ae9",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "file": "lucide-react.js",
+      "fileHash": "b28a1830",
+      "needsInterop": false
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "191fef06",
+      "needsInterop": true
+    },
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "ec830088",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "55642437",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-nbk3hphP": {
+      "file": "chunk-nbk3hphP.js",
+      "isDynamicEntry": false
+    }
+  }
+}

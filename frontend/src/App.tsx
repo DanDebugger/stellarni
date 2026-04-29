@@ -7,6 +7,7 @@ import { RoleSelection } from './pages/RoleSelection';
 import { LogOut, Loader2 } from 'lucide-react';
 import { usePersistentState } from './hooks/usePersistentState';
 import { useFreighter } from './hooks/useFreighter';
+import { clearCurrentUser } from './utils/localUserAuth';
 
 type ViewState = 'auth' | 'role' | 'student' | 'employer';
 
@@ -46,36 +47,24 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const verifySession = async () => {
-      if (!jwt) {
-        setView('auth');
-        setIsVerifyingSession(false);
-        return;
-      }
-      try {
-        const res = await fetch('http://127.0.0.1:3000/api/me', {
-          headers: { 'Authorization': `Bearer ${jwt}` }
-        });
-        if (!res.ok) throw new Error('Session invalid');
-        const hashView = getHashView();
-        if (hashView && hashView !== 'auth') {
-          setView(hashView);
-          return;
-        }
-        const savedRole = localStorage.getItem('stellarni_role');
-        if (savedRole === 'employer' || savedRole === 'student') {
-          setView(savedRole);
-        } else {
-          setView('role');
-        }
-      } catch (e) {
-        setJwt(null);
-        setView('auth');
-      } finally {
-        setIsVerifyingSession(false);
-      }
-    };
-    verifySession();
+    if (!jwt) {
+      setView('auth');
+      setIsVerifyingSession(false);
+      return;
+    }
+    const hashView = getHashView();
+    if (hashView && hashView !== 'auth') {
+      setView(hashView);
+      setIsVerifyingSession(false);
+      return;
+    }
+    const savedRole = localStorage.getItem('stellarni_role');
+    if (savedRole === 'employer' || savedRole === 'student') {
+      setView(savedRole);
+    } else {
+      setView('role');
+    }
+    setIsVerifyingSession(false);
   }, [jwt, setJwt]);
 
   const handleLoginSuccess = (token: string) => {
@@ -89,12 +78,8 @@ function App() {
   };
 
   const handleLogout = async () => {
-    try {
-      await fetch('http://127.0.0.1:3000/api/logout', { method: 'POST' });
-    } catch {
-      // Even if backend logout fails, force local logout state.
-    }
     await disconnect();
+    clearCurrentUser();
     localStorage.removeItem('stellarni_role');
     setJwt(null);
     setView('auth');

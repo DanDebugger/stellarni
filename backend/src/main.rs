@@ -55,6 +55,18 @@ struct Credential {
     employer_signed: bool,
     #[serde(default)]
     institution_signed: bool,
+    #[serde(default)]
+    task_title: Option<String>,
+    #[serde(default)]
+    task_status: Option<String>,
+    #[serde(default)]
+    certificate_name: Option<String>,
+    #[serde(default)]
+    completion_notes: Option<String>,
+    #[serde(default)]
+    employer_certificate_pdf: Option<String>,
+    #[serde(default)]
+    reward_tx_hash: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -63,6 +75,12 @@ struct StatusUpdateRequest {
     employer_signed: Option<bool>,
     institution_signed: Option<bool>,
     verified: Option<bool>,
+    task_title: Option<String>,
+    task_status: Option<String>,
+    certificate_name: Option<String>,
+    completion_notes: Option<String>,
+    employer_certificate_pdf: Option<String>,
+    reward_tx_hash: Option<String>,
 }
 
 #[derive(Clone)]
@@ -203,6 +221,12 @@ async fn update_credential_status(
         if let Some(s) = payload.employer_signed { cred.employer_signed = s; }
         if let Some(s) = payload.institution_signed { cred.institution_signed = s; }
         if let Some(v) = payload.verified { cred.verified = v; }
+        if payload.task_title.is_some() { cred.task_title = payload.task_title; }
+        if payload.task_status.is_some() { cred.task_status = payload.task_status; }
+        if payload.certificate_name.is_some() { cred.certificate_name = payload.certificate_name; }
+        if payload.completion_notes.is_some() { cred.completion_notes = payload.completion_notes; }
+        if payload.employer_certificate_pdf.is_some() { cred.employer_certificate_pdf = payload.employer_certificate_pdf; }
+        if payload.reward_tx_hash.is_some() { cred.reward_tx_hash = payload.reward_tx_hash; }
         Ok(Json(cred.clone()))
     } else {
         Err((
