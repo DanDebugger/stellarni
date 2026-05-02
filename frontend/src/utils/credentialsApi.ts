@@ -4,6 +4,14 @@ const API_BASE = import.meta.env.VITE_API_BASE || 'http://127.0.0.1:3000';
 const STORAGE_KEY = 'stellarni_credentials';
 const MEMORY_KEY = '__stellarni_credentials_memory__';
 const UPDATE_EVENT = 'stellarni-credentials-updated';
+
+// Sample PDF data URLs for demo — minimal valid PDFs with student name/role text
+const SAMPLE_PDF_1 = 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDg0Pj4Kc3RyZWFtCkJUCi9GMSAyNCBUZgo3MiA3MDAgVGQKKERhbmdyZXkgLSBGcm9udGVuZCBEZXZlbG9wZXIpIFRqCjAgLTMwIFRkCi9GMSAxNCBUZgooUmVzdW1lIC8gQ3JlZGVudGlhbCBEb2N1bWVudCkgVGoKRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlwZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj5lbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjcyIDAwMDAwIG4gCjAwMDAwMDA0MDcgMDAwMDAgbiAKdHJhaWxlcjw8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjQ3OAolJUVPRg==';
+const SAMPLE_PDF_2 = 'data:application/pdf;base64,JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMCBvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwvVHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0vQ29udGVudHMgNCAwIFIvUmVzb3VyY2VzPDwvRm9udDw8L0YxIDUgMCBSPj4+Pj4+ZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDc4Pj4Kc3RyZWFtCkJUCi9GMSAyNCBUZgo3MiA3MDAgVGQKKEFsZXggQ3J1eiAtIFVJL1VYIERlc2lnbmVyKSBUagowIC0zMCBUZAovRjEgMTQgVGYKKFJlc3VtZSAvIENyZWRlbnRpYWwgRG9jdW1lbnQpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iajw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+ZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKMDAwMDAwMDI3MiAwMDAwMCBuIAowMDAwMDAwNDAxIDAwMDAwIG4gCnRyYWlsZXI8PC9TaXplIDYvUm9vdCAxIDAgUj4+CnN0YXJ0eHJlZgo0NzIKJSVFT0Y=';
+
+// Version key — bump to force localStorage refresh when mock data changes
+const MOCK_VERSION = 'v3';
+
 const MOCK_CREDENTIALS: Credential[] = [
   {
     id: 1,
@@ -22,6 +30,7 @@ const MOCK_CREDENTIALS: Credential[] = [
     certificate_name: 'Frontend Internship Completion',
     completion_notes: 'Completed assigned UI task with responsive behavior.',
     reward_tx_hash: '0ef43d7a4a4a929c66e5420963c3d287c0629bd926d31334c240315ddbbcea93',
+    student_certificate_pdf: SAMPLE_PDF_1,
   },
   {
     id: 2,
@@ -38,6 +47,7 @@ const MOCK_CREDENTIALS: Credential[] = [
     task_title: 'Create dashboard prototype',
     task_status: 'assigned',
     completion_notes: '',
+    student_certificate_pdf: SAMPLE_PDF_2,
   },
 ];
 
@@ -56,8 +66,10 @@ export async function fetchCredentials(): Promise<Credential[]> {
   }
 
   const raw = readStorage();
-  if (!raw) {
+  const version = readVersion();
+  if (!raw || version !== MOCK_VERSION) {
     writeStorage(JSON.stringify(MOCK_CREDENTIALS));
+    writeVersion(MOCK_VERSION);
     return MOCK_CREDENTIALS;
   }
   try {
@@ -180,6 +192,22 @@ function writeStorage(value: string) {
     (globalThis as any)[MEMORY_KEY] = value;
   }
   emitUpdate();
+}
+
+function readVersion(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY + '_version');
+  } catch {
+    return null;
+  }
+}
+
+function writeVersion(v: string) {
+  try {
+    localStorage.setItem(STORAGE_KEY + '_version', v);
+  } catch {
+    // ignore
+  }
 }
 
 function emitUpdate() {

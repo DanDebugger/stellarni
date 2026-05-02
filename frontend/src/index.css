@@ -26,3 +26,103 @@ body {
 .input-field {
   @apply w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all;
 }
+
+/* ── Modal System ── */
+
+.modal-overlay {
+  @apply fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm grid place-items-center p-4;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.modal-container {
+  @apply w-full bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl shadow-black/40;
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+.modal-close-btn {
+  @apply text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg p-1.5 transition-colors;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Status Badges ── */
+
+.status-badge {
+  @apply px-2 py-0.5 text-[10px] font-bold rounded-full inline-flex items-center gap-1;
+}
+
+.status-badge-success {
+  @apply bg-emerald-500/20 text-emerald-400;
+}
+
+.status-badge-warning {
+  @apply bg-amber-500/20 text-amber-400;
+}
+
+.status-badge-info {
+  @apply bg-blue-500/20 text-blue-400;
+}
+
+.status-badge-default {
+  @apply bg-slate-700 text-slate-400;
+}
+
+.status-badge-danger {
+  @apply bg-red-500/20 text-red-400;
+}
+
+/* ── Stellarni Table ── */
+
+.stellarni-table {
+  @apply w-full text-xs;
+}
+
+.stellarni-table thead tr {
+  @apply text-slate-500 border-b border-slate-800;
+}
+
+.stellarni-table th {
+  @apply text-left py-3 px-3 text-[10px] uppercase font-bold tracking-wider;
+}
+
+.stellarni-table tbody tr {
+  @apply border-b border-slate-800/60 transition-colors;
+}
+
+.stellarni-table tbody tr:hover {
+  @apply bg-slate-800/30;
+}
+
+.stellarni-table td {
+  @apply py-3 px-3;
+}
+
+/* ── Action buttons inside tables ── */
+
+.table-action-btn {
+  @apply px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all inline-flex items-center gap-1.5 border;
+}
+
+.table-action-btn-teal {
+  @apply border-teal-500/30 text-teal-300 bg-teal-500/5 hover:bg-teal-500/15 hover:border-teal-500/50;
+}
+
+.table-action-btn-blue {
+  @apply border-blue-500/30 text-blue-300 bg-blue-500/5 hover:bg-blue-500/15 hover:border-blue-500/50;
+}
+
+.table-action-btn-purple {
+  @apply border-purple-500/30 text-purple-300 bg-purple-500/5 hover:bg-purple-500/15 hover:border-purple-500/50;
+}
+
+.table-action-btn-emerald {
+  @apply border-emerald-500/30 text-emerald-300 bg-emerald-500/5 hover:bg-emerald-500/15 hover:border-emerald-500/50;
+}

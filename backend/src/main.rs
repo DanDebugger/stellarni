@@ -1,5 +1,6 @@
 use axum::{
     extract::State,
+    extract::Path,
     http::{HeaderMap, StatusCode},
     routing::{get, post, put},
     Json, Router,
@@ -66,6 +67,8 @@ struct Credential {
     #[serde(default)]
     employer_certificate_pdf: Option<String>,
     #[serde(default)]
+    student_certificate_pdf: Option<String>,
+    #[serde(default)]
     reward_tx_hash: Option<String>,
 }
 
@@ -104,6 +107,10 @@ async fn main() {
         .route("/api/me", get(me_handler))
         .route("/api/logout", post(logout_handler))
         .route("/api/credentials", get(list_credentials).post(create_credential))
+        .route(
+            "/api/credentials/student-pdf/:hash",
+            get(get_student_certificate_pdf),
+        )
         .route("/api/credentials/status", put(update_credential_status))
         .layer(cors)
         .with_state(state);
@@ -200,6 +207,31 @@ async fn list_credentials(
 ) -> Json<Vec<Credential>> {
     let creds = state.credentials.read().unwrap();
     Json(creds.clone())
+}
+
+#[derive(Serialize)]
+struct StudentPdfResponse {
+    student_certificate_pdf: String,
+}
+
+/// GET /api/credentials/student-pdf/:hash
+async fn get_student_certificate_pdf(
+    Path(hash): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<StudentPdfResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let creds = state.credentials.read().unwrap();
+    if let Some(cred) = creds.iter().find(|c| c.hash == hash) {
+        if let Some(pdf) = cred.student_certificate_pdf.clone() {
+            return Ok(Json(StudentPdfResponse { student_certificate_pdf: pdf }));
+        }
+    }
+
+    Err((
+        StatusCode::NOT_FOUND,
+        Json(ErrorResponse {
+            message: "Student certificate PDF not found".to_string(),
+        }),
+    ))
 }
 
 /// POST /api/credentials — register a new credential

@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Upload, Loader2, CheckCircle2, User, Save, FileCheck, Eye, X } from 'lucide-react';
+import { Upload, Loader2, CheckCircle2, User, Save, FileCheck, Eye, X, Download, ExternalLink, Award, Receipt } from 'lucide-react';
 import { hashFile } from '../utils/hash';
 import { useFreighter } from '../hooks/useFreighter';
 import { usePersistentState } from '../hooks/usePersistentState';
 import { CREDENTIALS_UPDATED_EVENT, fetchCredentials, createCredential, updateCredentialStatus } from '../utils/credentialsApi';
+import { generateCertificateImage, downloadCertificateImage } from '../utils/certificateGenerator';
 import type { Credential } from './EmployerDashboard';
 
 export function StudentDashboard() {
@@ -68,11 +69,22 @@ export function StudentDashboard() {
   }, [pdfPreviewUrl]);
 
   const handleRegister = async () => {
-    if (!hash || !publicKey) return;
+    if (!hash || !publicKey || !file) return;
     setIsRegistering(true);
     setError(null);
     
     try {
+      // Persist the student-uploaded PDF in shared credential storage (MVP).
+      const studentPdfDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') resolve(reader.result);
+          else reject(new Error('Unable to read PDF as data URL.'));
+        };
+        reader.onerror = () => reject(new Error('Failed to read PDF file.'));
+        reader.readAsDataURL(file);
+      });
+
       const rememberedEmployer = localStorage.getItem('stellarni_last_employer_wallet') || '';
       const resolvedEmployer = rememberedEmployer || publicKey;
       await createCredential({
@@ -83,6 +95,7 @@ export function StudentDashboard() {
         address: publicKey,
         employer_address: resolvedEmployer,
         institution_address: resolvedEmployer,
+        student_certificate_pdf: studentPdfDataUrl,
       });
       await loadCredentials();
       setSuccess(true);
@@ -330,52 +343,109 @@ export function StudentDashboard() {
         )}
 
         {activeTab === 'certificates' && (
-          <div className="glass-panel p-6 border border-slate-700/70">
-            <h3 className="font-bold mb-4">Certificates Issued</h3>
-            {issuedCertificates.length === 0 ? (
-              <div className="text-sm text-slate-500 text-center py-8 border border-dashed border-slate-700 rounded-xl">
-                No certificate issued yet. Finish assigned tasks and wait for employer approval.
+          <div className="space-y-6">
+            {/* Certificates Grid */}
+            <div className="glass-panel p-6 border border-slate-700/70">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
+                  <Award className="w-4 h-4 text-purple-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Certificates Issued</h3>
+                <span className="ml-auto text-xs text-slate-500">{issuedCertificates.length} certificate{issuedCertificates.length !== 1 ? 's' : ''}</span>
               </div>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-4">
-                {issuedCertificates.map((cert) => (
-                  <div key={cert.id} className="rounded-xl border border-slate-700 bg-slate-900/40 p-4">
-                    <p className="text-xs text-slate-500 mb-1">Certificate Name</p>
-                    <p className="font-semibold text-slate-100">{cert.certificate_name || 'Pending name'}</p>
-                    <p className="text-xs text-slate-500 mt-3 mb-1">Accomplishment</p>
-                    <p className="text-sm text-slate-300 line-clamp-3">{cert.completion_notes || 'Pending accomplishment notes'}</p>
-                    <button onClick={() => setViewingCredential(cert)} className="mt-4 text-emerald-300 hover:text-emerald-200 text-sm">
-                      View Full Certificate
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="mt-6 pt-5 border-t border-slate-700">
-              <h4 className="text-sm font-semibold text-slate-100 mb-3">Transaction History</h4>
-              {rewardTransactions.length === 0 ? (
-                <a
-                  href={`${STELLAR_EXPERT_TX_BASE}${FALLBACK_TX}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center text-sm text-emerald-300 hover:text-emerald-200"
-                >
-                  View sample transaction history on StellarExpert
-                </a>
+              {issuedCertificates.length === 0 ? (
+                <div className="text-center py-10 border border-dashed border-slate-700 rounded-xl">
+                  <Award className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+                  <p className="text-sm text-slate-500">No certificate issued yet.</p>
+                  <p className="text-xs text-slate-600 mt-1">Finish assigned tasks and wait for employer approval.</p>
+                </div>
               ) : (
-                <div className="space-y-2">
-                  {rewardTransactions.map((item) => (
-                    <a
-                      key={item.id}
-                      href={`${STELLAR_EXPERT_TX_BASE}${item.tx}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block rounded-lg border border-slate-700 bg-slate-900/40 px-3 py-2 hover:border-emerald-500/40"
-                    >
-                      <p className="text-xs text-slate-500">{item.name} • {item.date}</p>
-                      <p className="text-xs font-mono text-emerald-300 break-all">{item.tx}</p>
-                    </a>
-                  ))}
+                <div className="grid md:grid-cols-2 gap-4">
+                  {issuedCertificates.map((cert) => {
+                    const certImg = generateCertificateImage({
+                      studentName: cert.name,
+                      certificateTitle: cert.certificate_name || 'Certificate of Completion',
+                      completionNotes: cert.completion_notes || 'For outstanding completion of assigned tasks.',
+                      date: cert.date,
+                      employerWallet: cert.employer_address || '',
+                      hash: cert.hash,
+                    });
+                    return (
+                      <div key={cert.id} className="rounded-xl border border-slate-700 bg-slate-900/40 overflow-hidden group hover:border-purple-500/30 transition-colors">
+                        {/* Certificate preview image */}
+                        <div className="relative">
+                          <img src={certImg} alt={cert.certificate_name || 'Certificate'} className="w-full" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent opacity-60" />
+                        </div>
+                        <div className="p-4">
+                          <p className="font-semibold text-slate-100">{cert.certificate_name || 'Pending name'}</p>
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cert.completion_notes || 'Pending accomplishment notes'}</p>
+                          <div className="flex items-center gap-2 mt-3">
+                            <button onClick={() => setViewingCredential(cert)} className="table-action-btn table-action-btn-emerald flex-1 justify-center">
+                              <Eye className="w-3 h-3" /> View
+                            </button>
+                            <button onClick={() => downloadCertificateImage(certImg, cert.name)} className="table-action-btn table-action-btn-purple flex-1 justify-center">
+                              <Download className="w-3 h-3" /> Download
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Transaction History */}
+            <div className="glass-panel p-6 border border-slate-700/70">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/15 flex items-center justify-center">
+                  <Receipt className="w-4 h-4 text-teal-400" />
+                </div>
+                <h3 className="text-lg font-bold text-white">Transaction History</h3>
+                <span className="ml-auto text-xs text-slate-500">{rewardTransactions.length} transaction{rewardTransactions.length !== 1 ? 's' : ''}</span>
+              </div>
+              {rewardTransactions.length === 0 ? (
+                <div className="text-center py-8 border border-dashed border-slate-700 rounded-xl">
+                  <Receipt className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500 mb-2">No reward transactions yet.</p>
+                  <a
+                    href={`${STELLAR_EXPERT_TX_BASE}${FALLBACK_TX}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1"
+                  >
+                    View sample on StellarExpert <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="stellarni-table">
+                    <thead>
+                      <tr>
+                        <th>Credential</th>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Transaction Hash</th>
+                        <th>Explorer</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rewardTransactions.map((item) => (
+                        <tr key={item.id}>
+                          <td className="text-slate-200 font-medium">{item.name}</td>
+                          <td className="text-slate-400">{item.date}</td>
+                          <td><span className="text-emerald-400 font-semibold">100 XLM</span></td>
+                          <td><span className="font-mono text-slate-400 text-[10px]">{item.tx.slice(0, 12)}...{item.tx.slice(-8)}</span></td>
+                          <td>
+                            <a href={`${STELLAR_EXPERT_TX_BASE}${item.tx}`} target="_blank" rel="noreferrer" className="text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 text-xs">
+                              View <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -385,45 +455,86 @@ export function StudentDashboard() {
       </div>
 
       {viewingCredential && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm grid place-items-center p-4">
-          <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl p-6">
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewingCredential(null)}>
+          <div className="modal-container max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Credential Details</h3>
-              <button onClick={() => setViewingCredential(null)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+                  <Eye className="w-4 h-4 text-emerald-400" />
+                </div>
+                Credential Details
+              </h3>
+              <button onClick={() => setViewingCredential(null)} className="modal-close-btn"><X className="w-5 h-5" /></button>
             </div>
-            <div className="space-y-2 text-sm text-slate-300">
-              <p><span className="text-slate-500">Student:</span> {viewingCredential.name}</p>
-              <p><span className="text-slate-500">Verification Code:</span> <span className="font-mono">{viewingCredential.hash}</span></p>
-              <p><span className="text-slate-500">Task:</span> {viewingCredential.task_title || 'No task assigned yet'}</p>
-              <p><span className="text-slate-500">Accomplishment:</span> {viewingCredential.completion_notes || 'No accomplishment notes yet'}</p>
-              <p><span className="text-slate-500">Certificate Name:</span> {viewingCredential.certificate_name || 'Not issued yet'}</p>
-              <p>
-                <span className="text-slate-500">Transaction:</span>{' '}
-                {viewingCredential.reward_tx_hash ? (
-                  <a
-                    href={`${STELLAR_EXPERT_TX_BASE}${viewingCredential.reward_tx_hash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-mono text-emerald-300 hover:text-emerald-200 break-all"
-                  >
-                    {viewingCredential.reward_tx_hash}
-                  </a>
-                ) : (
-                  <a
-                    href={`${STELLAR_EXPERT_TX_BASE}${FALLBACK_TX}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-emerald-300 hover:text-emerald-200"
-                  >
-                    View sample history
-                  </a>
-                )}
-              </p>
+
+            {/* Info grid */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="p-3 rounded-xl border border-slate-700/80 bg-slate-900/40">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Student</p>
+                <p className="text-sm font-semibold text-white">{viewingCredential.name}</p>
+              </div>
+              <div className="p-3 rounded-xl border border-slate-700/80 bg-slate-900/40">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Certificate</p>
+                <p className="text-sm font-semibold text-white">{viewingCredential.certificate_name || 'Not issued'}</p>
+              </div>
             </div>
+
+            <div className="p-3 rounded-xl border border-slate-700/80 bg-slate-900/40 mb-4">
+              <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Verification Hash</p>
+              <p className="text-xs font-mono text-emerald-400 break-all">{viewingCredential.hash}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+              <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-700/60">
+                <p className="text-slate-500 mb-1">Task</p>
+                <p className="text-slate-300">{viewingCredential.task_title || 'No task assigned'}</p>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-900/60 border border-slate-700/60">
+                <p className="text-slate-500 mb-1">Accomplishment</p>
+                <p className="text-slate-300">{viewingCredential.completion_notes || 'None'}</p>
+              </div>
+            </div>
+
+            {/* Transaction */}
+            <div className="p-3 rounded-xl border border-slate-700/80 bg-slate-900/40 mb-4">
+              <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Transaction</p>
+              {viewingCredential.reward_tx_hash ? (
+                <a href={`${STELLAR_EXPERT_TX_BASE}${viewingCredential.reward_tx_hash}`} target="_blank" rel="noreferrer" className="text-xs font-mono text-emerald-300 hover:text-emerald-200 break-all inline-flex items-center gap-1">
+                  {viewingCredential.reward_tx_hash} <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                </a>
+              ) : (
+                <a href={`${STELLAR_EXPERT_TX_BASE}${FALLBACK_TX}`} target="_blank" rel="noreferrer" className="text-xs text-emerald-300 hover:text-emerald-200 inline-flex items-center gap-1">
+                  View sample history <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+
+            {/* Auto-generated certificate image */}
+            {viewingCredential.certificate_name && (() => {
+              const certImg = generateCertificateImage({
+                studentName: viewingCredential.name,
+                certificateTitle: viewingCredential.certificate_name || 'Certificate of Completion',
+                completionNotes: viewingCredential.completion_notes || '',
+                date: viewingCredential.date,
+                employerWallet: viewingCredential.employer_address || '',
+                hash: viewingCredential.hash,
+              });
+              return (
+                <div className="mb-4">
+                  <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Generated Certificate</p>
+                  <img src={certImg} alt="Certificate" className="w-full rounded-lg border border-slate-700" />
+                  <button onClick={() => downloadCertificateImage(certImg, viewingCredential.name)} className="btn-primary w-full mt-3 py-2.5 flex items-center justify-center gap-2 text-sm">
+                    <Download className="w-4 h-4" /> Download Certificate
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* Employer PDF */}
             {viewingCredential.employer_certificate_pdf && (
-              <div className="mt-4">
-                <p className="text-xs text-slate-500 mb-2 uppercase font-bold">Issued Certificate PDF</p>
-                <iframe src={viewingCredential.employer_certificate_pdf} className="w-full h-64 rounded-lg border border-slate-700" title="Issued Certificate Preview" />
+              <div className="mb-4">
+                <p className="text-[10px] text-slate-500 uppercase font-bold mb-2">Employer Issued PDF</p>
+                <iframe src={viewingCredential.employer_certificate_pdf} className="w-full h-64 rounded-lg border border-slate-700" title="Issued Certificate" />
               </div>
             )}
           </div>

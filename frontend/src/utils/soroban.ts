@@ -15,13 +15,30 @@ const DEFAULT_SIM_ACCOUNT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 const XLM_CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 
 async function signWithFreighter(txXdr: string): Promise<string> {
-  const response = await freighterSignTransaction(txXdr, {
-    networkPassphrase: NETWORK_PASSPHRASE,
-  });
-  if (!response || response.error || !response.signedTxXdr) {
-    throw new Error(response?.error || 'Freighter error');
+  let attempts = 0;
+  const maxAttempts = 3;
+
+  while (attempts < maxAttempts) {
+    try {
+      const response = await freighterSignTransaction(txXdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
+      });
+      if (!response || response.error || !response.signedTxXdr) {
+        throw new Error(response?.error || 'Freighter error');
+      }
+      return response.signedTxXdr;
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      // If it's a connection error, wait a bit and retry
+      if (msg.includes('Could not establish connection') && attempts < maxAttempts - 1) {
+        attempts++;
+        await new Promise(r => setTimeout(r, 500 * attempts));
+        continue;
+      }
+      throw e;
+    }
   }
-  return response.signedTxXdr;
+  throw new Error('Failed to sign transaction after multiple attempts');
 }
 
 function hexToBytes32(hex: string): xdr.ScVal {
@@ -36,8 +53,10 @@ function hexToBytes32(hex: string): xdr.ScVal {
 async function executeContractCall(publicKey: string, method: string, args: xdr.ScVal[]) {
   const account = await server.getAccount(publicKey);
   const contract = new Contract(CONTRACT_ID);
+  
+  // Use a slightly higher fee to ensure priority during congested times
   const tx = new TransactionBuilder(account, {
-    fee: '1000',
+    fee: '5000', 
     networkPassphrase: NETWORK_PASSPHRASE,
   })
     .addOperation(contract.call(method, ...args))
@@ -45,18 +64,27 @@ async function executeContractCall(publicKey: string, method: string, args: xdr.
     .build();
 
   const prepared = await server.prepareTransaction(tx);
+  
+  // Add a small breather before triggering Freighter to avoid rapid-fire issues
+  await new Promise(r => setTimeout(r, 300));
+  
   const signedTxXdr = await signWithFreighter(prepared.toXDR());
   const signedTx = new Transaction(signedTxXdr, NETWORK_PASSPHRASE);
   const sendResponse = await server.sendTransaction(signedTx);
   
   if (sendResponse.status === 'PENDING') {
     let statusResponse = await server.getTransaction(sendResponse.hash);
-    while (statusResponse.status !== 'SUCCESS' && statusResponse.status !== 'FAILED') {
-      await new Promise(r => setTimeout(r, 1000));
+    let polls = 0;
+    while (statusResponse.status !== 'SUCCESS' && statusResponse.status !== 'FAILED' && polls < 30) {
+      await new Promise(r => setTimeout(r, 1500));
       statusResponse = await server.getTransaction(sendResponse.hash);
+      polls++;
     }
     if (statusResponse.status === 'FAILED') {
       throw new Error('Transaction failed on chain');
+    }
+    if (polls >= 30) {
+      throw new Error('Transaction timeout (still pending)');
     }
     return sendResponse.hash;
   }

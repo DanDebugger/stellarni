@@ -14,6 +14,12 @@ export function useFreighter() {
     const initConnection = async () => {
       try {
         setIsConnecting(true);
+        // Add a small safety check for Freighter extension
+        if (typeof window === 'undefined') return;
+        
+        // Use a small delay to let extension initialize
+        await new Promise(r => setTimeout(r, 100));
+
         if (await isAllowed()) {
           const res = await getAddress();
           if (mounted && res.address) {
@@ -24,17 +30,28 @@ export function useFreighter() {
 
         // Auto-reconnect if user previously connected this app.
         if (localStorage.getItem(AUTO_CONNECT_KEY) === '1') {
-          await setAllowed();
-          const access = await requestAccess();
-          if (!access.error) {
-            const res = await getAddress();
-            if (mounted && res.address) {
-              setPublicKey(res.address);
+          // Wrapped in try/catch to prevent blocking the app if Freighter fails
+          try {
+            await setAllowed();
+            const access = await requestAccess();
+            if (!access.error) {
+              const res = await getAddress();
+              if (mounted && res.address) {
+                setPublicKey(res.address);
+              }
             }
+          } catch (innerError) {
+            console.warn('Freighter auto-connect failed:', innerError);
           }
         }
       } catch (e) {
-        console.error(e);
+        // Specifically catch the "Could not establish connection" error to avoid crashing
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('Could not establish connection')) {
+          console.warn('Freighter connection not yet available.');
+        } else {
+          console.error('Freighter initialization error:', e);
+        }
       } finally {
         if (mounted) setIsConnecting(false);
       }
@@ -48,6 +65,7 @@ export function useFreighter() {
   }, []);
 
   const connect = async () => {
+    if (isConnecting) return null;
     setError(null);
     setIsConnecting(true);
     try {
@@ -65,11 +83,8 @@ export function useFreighter() {
       }
       return null;
     } catch (e: unknown) {
-      if (e instanceof Error) {
-        setError(e.message);
-      } else {
-        setError('Failed to connect Freighter');
-      }
+      const msg = e instanceof Error ? e.message : 'Failed to connect Freighter';
+      setError(msg);
       return null;
     } finally {
       setIsConnecting(false);

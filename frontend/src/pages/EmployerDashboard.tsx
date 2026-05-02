@@ -1,9 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, ShieldCheck, Loader2, Building2, CheckCircle2, DollarSign, Fingerprint, Users, ClipboardCheck, Award } from 'lucide-react';
+import { Search, ShieldCheck, Building2, CheckCircle2, DollarSign, Users, ClipboardCheck, Award, Eye, FileText, Fingerprint, Copy } from 'lucide-react';
 import { useFreighter } from '../hooks/useFreighter';
 import { CREDENTIALS_UPDATED_EVENT, createCredential, fetchCredentials, updateCredentialStatus } from '../utils/credentialsApi';
 import { getCertificateStatus, registerCertificateOnChain, signCertificateOnChain, submitLinkPayment } from '../utils/soroban';
 import { TransactionReceipt } from '../components/TransactionReceipt';
+import { TransactionHistoryPanel } from '../components/TransactionHistoryPanel';
+import { PdfViewerModal } from '../components/PdfViewerModal';
+import { TaskModal } from '../components/TaskModal';
+import { CryptoValidModal } from '../components/CryptoValidModal';
+import { CertificateModal } from '../components/CertificateModal';
 
 export interface Credential {
   id: number;
@@ -21,13 +26,14 @@ export interface Credential {
   task_status?: 'assigned' | 'accomplished';
   certificate_name?: string;
   completion_notes?: string;
+  student_certificate_pdf?: string;
   employer_certificate_pdf?: string;
   reward_tx_hash?: string;
 }
 
 export function EmployerDashboard() {
   const [applicants, setApplicants] = useState<Credential[]>([]);
-  const [hashInput, setHashInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [verificationResult, setVerificationResult] = useState<'success' | 'failed' | null>(null);
@@ -38,24 +44,26 @@ export function EmployerDashboard() {
   const [verificationNote, setVerificationNote] = useState<string | null>(null);
   const [evaluationNotes, setEvaluationNotes] = useState('');
   const [rating, setRating] = useState(0);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [certificateName, setCertificateName] = useState('');
-  const [completionNotes, setCompletionNotes] = useState('');
-  const [certificatePdfDataUrl, setCertificatePdfDataUrl] = useState<string | null>(null);
+  const [lastVerifiedStatus, setLastVerifiedStatus] = useState<Record<string, any>>({});
+  const [signingStep, setSigningStep] = useState<string | null>(null);
+  const [copiedHash, setCopiedHash] = useState<string | null>(null);
+
+  // Modal states
+  const [pdfModal, setPdfModal] = useState<{ open: boolean; url: string; title: string }>({ open: false, url: '', title: '' });
+  const [taskModal, setTaskModal] = useState<{ open: boolean; credential: Credential | null }>({ open: false, credential: null });
+  const [cryptoModal, setCryptoModal] = useState<{ open: boolean; credential: Credential | null }>({ open: false, credential: null });
+  const [certModal, setCertModal] = useState<{ open: boolean; credential: Credential | null }>({ open: false, credential: null });
 
   const { publicKey } = useFreighter();
 
   useEffect(() => {
-    if (publicKey) {
-      localStorage.setItem('stellarni_last_employer_wallet', publicKey);
-    }
+    if (publicKey) localStorage.setItem('stellarni_last_employer_wallet', publicKey);
   }, [publicKey]);
 
   const loadApplicants = useCallback(async () => {
     try {
       const creds = await fetchCredentials();
       if (creds.length === 0) {
-        // Hard fallback for MVP: reseed demo data if storage was manually emptied.
         localStorage.removeItem('stellarni_credentials');
         const reseeded = await fetchCredentials();
         setApplicants(reseeded);
@@ -73,10 +81,23 @@ export function EmployerDashboard() {
     return () => clearInterval(interval);
   }, [loadApplicants]);
 
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!hashInput.trim()) return;
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'stellarni_credentials') loadApplicants();
+    };
+    const onCredentialsUpdated = () => loadApplicants();
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(CREDENTIALS_UPDATED_EVENT, onCredentialsUpdated);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(CREDENTIALS_UPDATED_EVENT, onCredentialsUpdated);
+    };
+  }, [loadApplicants]);
 
+  // ── Handlers ──
+
+  const handleVerify = async (hash: string) => {
+    if (!hash.trim()) return;
     setIsVerifying(true);
     setVerificationResult(null);
     setTxHash(null);
@@ -84,35 +105,22 @@ export function EmployerDashboard() {
     setVerificationNote(null);
 
     try {
-      const trimmedHash = hashInput.trim();
+      const trimmedHash = hash.trim();
       let selectedApplicant = applicants.find((a) => a.hash === trimmedHash);
       const status = await getCertificateStatus(trimmedHash);
 
-      // If hash exists on-chain but not in local records, create a local placeholder
-      // so employer can proceed in MVP mode.
       if (!selectedApplicant && status) {
         await createCredential({
-          name: 'Imported Applicant',
-          role: 'Unspecified',
-          hash: trimmedHash,
+          name: 'Imported Applicant', role: 'Unspecified', hash: trimmedHash,
           date: new Date().toISOString().split('T')[0],
-          address: publicKey || '',
-          employer_address: publicKey || '',
-          institution_address: publicKey || '',
+          address: publicKey || '', employer_address: publicKey || '', institution_address: publicKey || '',
         });
         await loadApplicants();
         selectedApplicant = {
-          id: -1,
-          name: 'Imported Applicant',
-          role: 'Unspecified',
-          hash: trimmedHash,
+          id: -1, name: 'Imported Applicant', role: 'Unspecified', hash: trimmedHash,
           date: new Date().toISOString().split('T')[0],
-          address: publicKey || '',
-          employer_address: publicKey || '',
-          institution_address: publicKey || '',
-          verified: false,
-          employer_signed: false,
-          institution_signed: false,
+          address: publicKey || '', employer_address: publicKey || '', institution_address: publicKey || '',
+          verified: false, employer_signed: false, institution_signed: false,
         };
       }
 
@@ -124,20 +132,19 @@ export function EmployerDashboard() {
 
       if (status) {
         setVerificationResult('success');
+        setLastVerifiedStatus(prev => ({ ...prev, [trimmedHash]: status }));
         await updateCredentialStatus({
-          hash: trimmedHash,
-          employer_signed: status.employer_signed,
-          institution_signed: false,
-          verified: status.employer_signed,
+          hash: trimmedHash, employer_signed: status.employer_signed,
+          institution_signed: false, verified: status.employer_signed,
         });
         await loadApplicants();
       } else {
-        // Student can submit off-chain first; treat as verifiable workflow item.
         setVerificationResult('success');
+        setLastVerifiedStatus(prev => ({ ...prev, [trimmedHash]: { employer_signed: false } }));
         setVerificationNote('Credential is submitted but not yet on-chain. Click "Sign as Employer" to register and sign.');
       }
     } catch (e: any) {
-      const selectedApplicant = applicants.find((a) => a.hash === hashInput.trim());
+      const selectedApplicant = applicants.find((a) => a.hash === hash.trim());
       if (selectedApplicant) {
         setVerificationResult('success');
         setVerificationNote('Credential found in submissions. You can proceed with "Sign as Employer".');
@@ -150,108 +157,82 @@ export function EmployerDashboard() {
     }
   };
 
-  const handleSign = async () => {
-    if (!publicKey || !hashInput.trim()) return;
+  const handleSign = async (hash: string) => {
+    if (!publicKey || !hash.trim()) return;
     setIsSigning(true);
     setPaymentError(null);
+    setSigningStep('Preparing...');
     try {
-      const selectedApplicant = applicants.find((a) => a.hash === hashInput.trim());
+      const trimmedHash = hash.trim();
+      const selectedApplicant = applicants.find((a) => a.hash === trimmedHash);
       if (!selectedApplicant) throw new Error('Select an applicant hash first.');
 
-      // If student submitted off-chain only, employer can register it on-chain first.
-      const existing = await getCertificateStatus(hashInput.trim());
+      // Use cached status if available to save one simulation
+      let existing = lastVerifiedStatus[trimmedHash];
       if (!existing) {
-        try {
-          await registerCertificateOnChain(
-            publicKey,
-            hashInput.trim(),
-            publicKey,
-            selectedApplicant.institution_address || publicKey
-          );
-        } catch (registerError: any) {
-          const registerMsg = registerError?.message || '';
-          // Some contracts throw custom Error(Contract, #1) when the certificate
-          // is already known/registered. Do not block signing flow for that case.
-          if (!registerMsg.includes('Error(Contract, #1)')) {
-            throw registerError;
-          }
-          setVerificationNote('Credential appears to be already registered on-chain. Continuing to signing step.');
-        }
+        setSigningStep('Checking on-chain status...');
+        existing = await getCertificateStatus(trimmedHash);
       }
 
-      const tx = await signCertificateOnChain(publicKey, hashInput.trim());
-      setTxHash(tx);
-      await updateCredentialStatus({ hash: hashInput.trim(), employer_signed: true });
+      if (!existing || !existing.employer_signed) {
+        if (!existing) {
+          setSigningStep('Registering on-chain...');
+          try {
+            await registerCertificateOnChain(publicKey, trimmedHash, publicKey, selectedApplicant.institution_address || publicKey);
+            // Small delay after registration to let nodes sync and avoid connection issues
+            await new Promise(r => setTimeout(r, 1000));
+          } catch (registerError: any) {
+            const registerMsg = registerError?.message || '';
+            if (!registerMsg.includes('Error(Contract, #1)')) throw registerError;
+            setVerificationNote('Credential already registered. Continuing to signing...');
+          }
+        }
+
+        setSigningStep('Signing credential...');
+        const tx = await signCertificateOnChain(publicKey, trimmedHash);
+        setTxHash(tx);
+      }
+
+      setSigningStep('Saving to backend...');
+      await updateCredentialStatus({ 
+        hash: trimmedHash, 
+        employer_signed: true,
+        completion_notes: evaluationNotes || 'Employer verified and signed.',
+        // rating could be added here if the API supported it, but we'll stick to notes for now
+      });
+      
       await loadApplicants();
+      setVerificationNote('Credential signed and evaluation saved successfully.');
     } catch (e: any) {
       const msg = e?.message || 'Signing failed';
-      // Some contract versions have no explicit sign function.
-      // In that case, keep the workflow moving and mark employer_signed off-chain.
-      if (
-        msg.includes('does not expose a compatible signing function') ||
-        msg.includes('non-existent contract function')
-      ) {
-        await updateCredentialStatus({ hash: hashInput.trim(), employer_signed: true });
+      if (msg.includes('does not expose a compatible signing function') || msg.includes('non-existent contract function')) {
+        await updateCredentialStatus({ hash: hash.trim(), employer_signed: true, completion_notes: evaluationNotes });
         await loadApplicants();
         setPaymentError(null);
-        setVerificationNote('On-chain sign function is unavailable in this contract version. Marked as employer-signed in app state.');
+        setVerificationNote('On-chain sign function unavailable. Marked as signed in app state.');
       } else {
         setPaymentError(msg);
       }
     } finally {
       setIsSigning(false);
+      setSigningStep(null);
     }
   };
 
-  const handleIssueBonus = async () => {
-    if (!publicKey || !hashInput.trim()) return;
-    setIsPaying(true);
-    setPaymentError(null);
-    try {
-      const selectedApplicant = applicants.find((a) => a.hash === hashInput.trim());
-      if (!selectedApplicant?.address) throw new Error('Applicant wallet missing.');
-      if (!selectedApplicant.employer_signed) {
-        throw new Error('Sign the credential first before issuing bonus.');
-      }
-      const tx = await submitLinkPayment(
-        publicKey,
-        selectedApplicant.address,
-        100
-      );
-      setTxHash(tx);
-      await updateCredentialStatus({
-        hash: hashInput.trim(),
-        verified: true,
-        task_status: completionNotes.trim() ? 'accomplished' : selectedApplicant.task_status,
-        certificate_name: certificateName.trim() || selectedApplicant.certificate_name,
-        completion_notes: completionNotes.trim() || selectedApplicant.completion_notes,
-        employer_certificate_pdf: certificatePdfDataUrl || selectedApplicant.employer_certificate_pdf,
-        reward_tx_hash: tx,
-      });
-      await loadApplicants();
-    } catch (e: any) {
-      setPaymentError(e.message || "Payment failed");
-    } finally {
-      setIsPaying(false);
-    }
+  const handleAssignTask = async (hash: string, taskTitle: string) => {
+    await updateCredentialStatus({ hash, task_title: taskTitle, task_status: 'assigned' });
+    await loadApplicants();
   };
 
-  const handleIssueCertificate = async () => {
-    if (!selected || !hashInput.trim()) return;
+  const handleIssueCertificate = async (hash: string, certName: string, notes: string, pdfDataUrl: string | null) => {
     setIsIssuingCertificate(true);
     setPaymentError(null);
     try {
-      if (selected.task_status !== 'accomplished') {
-        throw new Error('Student must finish the assigned task before issuing certificate.');
-      }
-      if (!certificateName.trim()) {
-        throw new Error('Certificate name is required.');
-      }
       await updateCredentialStatus({
-        hash: selected.hash,
-        certificate_name: certificateName.trim(),
-        completion_notes: completionNotes.trim() || selected.completion_notes || 'Task completed successfully.',
-        employer_certificate_pdf: certificatePdfDataUrl || selected.employer_certificate_pdf,
+        hash,
+        certificate_name: certName,
+        completion_notes: notes || 'Task completed successfully.',
+        employer_certificate_pdf: pdfDataUrl || undefined,
       });
       await loadApplicants();
       setVerificationNote('Certificate issued successfully. Student can now review it.');
@@ -262,63 +243,55 @@ export function EmployerDashboard() {
     }
   };
 
-  const selected = applicants.find((a) => a.hash === hashInput.trim());
+  const handleIssueBonus = async (hash: string) => {
+    if (!publicKey) return;
+    setIsPaying(true);
+    setPaymentError(null);
+    try {
+      const selectedApplicant = applicants.find((a) => a.hash === hash);
+      if (!selectedApplicant?.address) throw new Error('Applicant wallet missing.');
+      if (!selectedApplicant.employer_signed) throw new Error('Sign the credential first before issuing bonus.');
+
+      const tx = await submitLinkPayment(publicKey, selectedApplicant.address, 100);
+      setTxHash(tx);
+      await updateCredentialStatus({
+        hash, verified: true,
+        task_status: selectedApplicant.task_status === 'accomplished' ? 'accomplished' : selectedApplicant.task_status,
+        reward_tx_hash: tx,
+      });
+      await loadApplicants();
+    } catch (e: any) {
+      setPaymentError(e.message || 'Payment failed');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const copyHash = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopiedHash(hash);
+    setTimeout(() => setCopiedHash(null), 1500);
+  };
+
+  // ── Filtered list ──
+  const filtered = applicants.filter((a) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return a.name.toLowerCase().includes(q) || a.hash.toLowerCase().includes(q) || a.role.toLowerCase().includes(q);
+  });
+
   const assignedCount = applicants.filter((a) => a.task_status === 'assigned').length;
   const accomplishedCount = applicants.filter((a) => a.task_status === 'accomplished').length;
   const verifiedCount = applicants.filter((a) => a.verified).length;
-
-  useEffect(() => {
-    if (!selected) return;
-    setTaskTitle(selected.task_title || '');
-    setCertificateName(selected.certificate_name || '');
-    setCompletionNotes(selected.completion_notes || '');
-    setCertificatePdfDataUrl(selected.employer_certificate_pdf || null);
-  }, [selected?.id]);
-
-  const handleAssignTask = async () => {
-    if (!selected || !taskTitle.trim()) return;
-    await updateCredentialStatus({
-      hash: selected.hash,
-      task_title: taskTitle.trim(),
-      task_status: 'assigned',
-    });
-    await loadApplicants();
-    setVerificationNote('Task assigned to student.');
-  };
-
-  const handleCertificateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCertificatePdfDataUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(selectedFile);
-  };
-
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === 'stellarni_credentials') {
-        loadApplicants();
-      }
-    };
-    const onCredentialsUpdated = () => loadApplicants();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener(CREDENTIALS_UPDATED_EVENT, onCredentialsUpdated);
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener(CREDENTIALS_UPDATED_EVENT, onCredentialsUpdated);
-    };
-  }, [loadApplicants]);
+  const rewardsIssued = applicants.filter((a) => a.reward_tx_hash).length;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 animate-in fade-in duration-700">
+      {/* Header */}
       <div className="glass-panel p-6 mb-6 bg-gradient-to-r from-teal-500/10 to-emerald-500/10 border border-teal-400/20">
         <h2 className="text-2xl font-bold text-white">Employer Command Center</h2>
         <p className="text-sm text-slate-300 mt-1">Verify student credentials, assign tasks, issue certificates, and release rewards.</p>
-        <div className="grid sm:grid-cols-3 gap-3 mt-4">
+        <div className="grid sm:grid-cols-4 gap-3 mt-4">
           <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-3">
             <p className="text-[11px] uppercase text-slate-500">Applicants</p>
             <p className="text-xl font-semibold text-white flex items-center gap-2"><Users className="w-4 h-4 text-teal-300" />{applicants.length}</p>
@@ -329,167 +302,239 @@ export function EmployerDashboard() {
           </div>
           <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-3">
             <p className="text-[11px] uppercase text-slate-500">Verified</p>
-            <p className="text-xl font-semibold text-white flex items-center gap-2"><Award className="w-4 h-4 text-emerald-300" />{verifiedCount}</p>
+            <p className="text-xl font-semibold text-white flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-300" />{verifiedCount}</p>
+          </div>
+          <div className="rounded-xl border border-slate-700/80 bg-slate-900/50 p-3">
+            <p className="text-[11px] uppercase text-slate-500">Rewards</p>
+            <p className="text-xl font-semibold text-white flex items-center gap-2"><DollarSign className="w-4 h-4 text-amber-300" />{rewardsIssued}</p>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="glass-panel p-6 h-fit border border-slate-700/70">
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <div className="flex items-center gap-3">
-              <Building2 className="w-6 h-6 text-teal-400" />
-              <h3 className="text-xl font-bold">Recent Applicants</h3>
-            </div>
-          </div>
-          <div className="overflow-x-auto max-h-[520px]">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-slate-500 border-b border-slate-800">
-                  <th className="text-left py-2 pr-2">Student</th>
-                  <th className="text-left py-2 pr-2">Verification Code</th>
-                  <th className="text-left py-2">Task</th>
+
+      {/* Search */}
+      <div className="glass-panel p-4 mb-6 border border-slate-700/70">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="text"
+            className="input-field pl-10 text-sm"
+            placeholder="Search by name, role, or hash..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Main Table */}
+      <div className="glass-panel border border-slate-700/70 overflow-hidden">
+        <div className="flex items-center gap-3 p-4 border-b border-slate-700/70">
+          <Building2 className="w-5 h-5 text-teal-400" />
+          <h3 className="text-lg font-bold text-white">Student Credentials</h3>
+          <span className="ml-auto text-xs text-slate-500">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="stellarni-table">
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Hash Verify</th>
+                <th>Student PDF</th>
+                <th>Give Task</th>
+                <th>Crypto Valid</th>
+                <th>Certificate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12 text-slate-500">
+                    {searchQuery ? 'No matching records found.' : 'No applicants yet.'}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {applicants.map((app) => (
-                  <tr
-                    key={app.id}
-                    onClick={() => setHashInput(app.hash)}
-                    className={`border-b border-slate-800/60 cursor-pointer ${hashInput === app.hash ? 'bg-teal-500/10' : 'hover:bg-slate-800/40'}`}
-                  >
-                    <td className="py-2 pr-2">
-                      <div className="font-semibold text-slate-100">{app.name}</div>
-                      <div className="text-slate-500">{app.role}</div>
-                    </td>
-                    <td className="py-2 pr-2 font-mono text-slate-400">{app.hash.slice(0, 10)}...</td>
-                    <td className="py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${app.task_status === 'accomplished' ? 'bg-emerald-500/20 text-emerald-400' : app.task_status === 'assigned' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-400'}`}>
-                        {app.task_status || 'none'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              ) : (
+                filtered.map((app) => {
+                  const hasPdf = !!app.student_certificate_pdf;
+                  const hasTask = !!app.task_title;
+                  const taskDone = app.task_status === 'accomplished';
+                  const hasCert = !!app.certificate_name;
+                  const isSigned = app.employer_signed;
+                  const isVerified = app.verified;
 
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass-panel p-8 border border-slate-700/70">
-            <h2 className="text-2xl font-bold mb-2 text-emerald-400">Credential Verification</h2>
-            <p className="text-sm text-slate-400 mb-6">Verify an applicant's hash on the Stellar ledger.</p>
-            <form onSubmit={handleVerify} className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <input type="text" className="input-field pl-10 font-mono text-sm" placeholder="Enter 64-char hash..." value={hashInput} onChange={(e) => setHashInput(e.target.value)} />
-              </div>
-              <button type="submit" className="btn-secondary w-full py-3" disabled={isVerifying || !hashInput}>
-                {isVerifying ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Verify Authenticity'}
-              </button>
-            </form>
-          </div>
+                  return (
+                    <tr key={app.id}>
+                      {/* Student Name */}
+                      <td>
+                        <div className="font-semibold text-slate-100">{app.name}</div>
+                        <div className="text-slate-500 text-[10px]">{app.role}</div>
+                      </td>
 
-          {verificationResult === 'success' && (
-            <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-8 animate-in zoom-in-95 shadow-[0_0_0_1px_rgba(16,185,129,0.08)]">
-              <div className="flex items-start gap-4 mb-6">
-                <ShieldCheck className="w-12 h-12 text-emerald-400" />
-                <div>
-                  <h3 className="text-xl font-bold text-white">Cryptographically Valid</h3>
-                  <p className="text-sm text-emerald-400/80">This document matches an on-chain credential record.</p>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-2 mb-4">
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full text-center ${selected?.employer_signed ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-400'}`}>Employer Signed</span>
-                <span className={`text-[10px] font-bold px-2 py-1 rounded-full text-center ${selected?.verified ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>Final Verification</span>
-              </div>
-              <div className="mb-4 p-3 rounded-xl border border-slate-700 bg-slate-900/40 text-xs">
-                <div className="flex justify-between gap-3 text-slate-300">
-                  <span className="text-slate-500">Authorized employer</span>
-                  <span className="font-mono">{selected?.employer_address ? `${selected.employer_address.slice(0, 8)}...${selected.employer_address.slice(-6)}` : 'Not set'}</span>
-                </div>
-                <div className="flex justify-between gap-3 mt-1 text-slate-300">
-                  <span className="text-slate-500">Connected wallet</span>
-                  <span className="font-mono">{publicKey ? `${publicKey.slice(0, 8)}...${publicKey.slice(-6)}` : 'Not connected'}</span>
-                </div>
-                {selected?.employer_address && publicKey && selected.employer_address !== publicKey && (
-                  <p className="mt-2 text-amber-300">
-                    Employer wallet differs from submitted employer key. Proceeding will use current wallet for new on-chain registration.
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2 mb-5">
-                <label className="text-xs text-slate-400 block">Applicant Evaluation</label>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button key={star} onClick={() => setRating(star)} className={`w-8 h-8 rounded-lg border ${rating >= star ? 'border-amber-400 bg-amber-400/20 text-amber-400' : 'border-slate-700 text-slate-500'}`}>★</button>
-                  ))}
-                </div>
-                <textarea
-                  className="input-field min-h-[90px] text-sm"
-                  placeholder="Provide feedback before issuing bonus..."
-                  value={evaluationNotes}
-                  onChange={(e) => setEvaluationNotes(e.target.value)}
-                />
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <input
-                    className="input-field text-sm"
-                    placeholder="Give task to student..."
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                  />
-                  <button onClick={handleAssignTask} className="btn-secondary py-2 text-sm">
-                    Give Task
-                  </button>
-                </div>
-                <input
-                  className="input-field text-sm"
-                  placeholder="Certificate name (e.g. Internship Completion)"
-                  value={certificateName}
-                  onChange={(e) => setCertificateName(e.target.value)}
-                />
-                <textarea
-                  className="input-field min-h-[70px] text-sm"
-                  placeholder="Accomplishment notes..."
-                  value={completionNotes}
-                  onChange={(e) => setCompletionNotes(e.target.value)}
-                />
-                <input type="file" accept="application/pdf" onChange={handleCertificateUpload} className="input-field text-xs" />
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <button onClick={handleSign} disabled={isSigning || !!selected?.employer_signed} className="btn-secondary py-3 flex items-center justify-center gap-2">
-                  {isSigning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
-                  {selected?.employer_signed ? 'Signed' : 'Sign as Employer'}
-                </button>
-                <button
-                  onClick={handleIssueCertificate}
-                  disabled={isIssuingCertificate || !selected?.employer_signed}
-                  className="btn-secondary py-3 flex items-center justify-center disabled:opacity-50"
-                >
-                  {isIssuingCertificate ? 'Issuing...' : 'Issue Certificate'}
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-3">
-                <button onClick={handleIssueBonus} disabled={isPaying || rating === 0 || !selected?.employer_signed} className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-50">
-                  {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="w-4 h-4" />}
-                  Issue 100 XLM Bonus
-                </button>
-              </div>
-              {verificationNote && <p className="mt-3 text-amber-300 text-sm">{verificationNote}</p>}
-              {paymentError && <p className="mt-4 text-red-400 text-sm">{paymentError}</p>}
-            </div>
-          )}
+                      {/* Hash Verify */}
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-slate-400 text-[10px]">{app.hash.slice(0, 10)}...</span>
+                          <button
+                            onClick={() => copyHash(app.hash)}
+                            className="text-slate-500 hover:text-emerald-400 transition-colors"
+                            title="Copy full hash"
+                          >
+                            {copiedHash === app.hash ? (
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                        <span className={`status-badge mt-1 ${isSigned ? 'status-badge-success' : isVerified ? 'status-badge-success' : 'status-badge-warning'}`}>
+                          {isSigned ? 'Signed' : isVerified ? 'Verified' : 'Pending'}
+                        </span>
+                      </td>
 
-          {txHash && (
-            <div className="glass-panel p-6 border border-emerald-500/20">
-              <div className="flex items-center gap-2 text-emerald-400 mb-3">
-                <CheckCircle2 className="w-5 h-5" />
-                <span className="font-semibold">Transaction Successful</span>
-              </div>
-              <TransactionReceipt hash={txHash} amount={100} asset="XLM" recipient={selected?.address || ''} />
-            </div>
-          )}
+                      {/* Student PDF */}
+                      <td>
+                        {hasPdf ? (
+                          <div className="space-y-1.5">
+                            <div
+                              onClick={() => setPdfModal({ open: true, url: app.student_certificate_pdf!, title: `${app.name}'s Resume / PDF` })}
+                              className="w-28 h-16 rounded-lg border border-slate-700/80 overflow-hidden cursor-pointer hover:border-emerald-500/40 transition-colors relative group"
+                            >
+                              <iframe
+                                src={app.student_certificate_pdf!}
+                                className="w-full h-full pointer-events-none"
+                                title={`${app.name} PDF thumbnail`}
+                                tabIndex={-1}
+                              />
+                              <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Eye className="w-4 h-4 text-emerald-400" />
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => setPdfModal({ open: true, url: app.student_certificate_pdf!, title: `${app.name}'s Resume / PDF` })}
+                              className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" /> Open Full View
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-28 h-16 rounded-lg border border-dashed border-slate-700/60 flex items-center justify-center">
+                            <span className="text-slate-600 text-[10px] text-center">No PDF<br />uploaded</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Give Task */}
+                      <td>
+                        <button
+                          onClick={() => setTaskModal({ open: true, credential: app })}
+                          className={`table-action-btn table-action-btn-blue`}
+                        >
+                          <ClipboardCheck className="w-3 h-3" />
+                          {hasTask ? (taskDone ? 'Done ✓' : 'View') : 'Assign'}
+                        </button>
+                      </td>
+
+                      {/* Crypto Valid */}
+                      <td>
+                        <button
+                          onClick={() => {
+                            setVerificationResult(null);
+                            setVerificationNote(null);
+                            setPaymentError(null);
+                            setCryptoModal({ open: true, credential: app });
+                          }}
+                          className={`table-action-btn ${isSigned ? 'table-action-btn-emerald' : 'table-action-btn-teal'}`}
+                        >
+                          <Fingerprint className="w-3 h-3" />
+                          {isSigned ? 'Valid ✓' : 'Verify'}
+                        </button>
+                      </td>
+
+                      {/* Certificate */}
+                      <td>
+                        <button
+                          onClick={() => {
+                            setPaymentError(null);
+                            setCertModal({ open: true, credential: app });
+                          }}
+                          className={`table-action-btn table-action-btn-purple`}
+                        >
+                          <Award className="w-3 h-3" />
+                          {hasCert ? 'View' : 'Generate'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
+
+      {/* Transaction Receipt (inline, after bonus) */}
+      {txHash && (
+        <div className="glass-panel p-6 border border-emerald-500/20 mt-6">
+          <div className="flex items-center gap-2 text-emerald-400 mb-3">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="font-semibold">Transaction Successful</span>
+          </div>
+          <TransactionReceipt hash={txHash} amount={100} asset="XLM" recipient={applicants.find(a => a.reward_tx_hash === txHash)?.address || ''} />
+        </div>
+      )}
+
+      {/* Transaction History */}
+      <TransactionHistoryPanel credentials={applicants} />
+
+      {/* ── Modals ── */}
+
+      <PdfViewerModal
+        isOpen={pdfModal.open}
+        onClose={() => setPdfModal({ open: false, url: '', title: '' })}
+        pdfDataUrl={pdfModal.url}
+        title={pdfModal.title}
+      />
+
+      <TaskModal
+        isOpen={taskModal.open}
+        onClose={() => setTaskModal({ open: false, credential: null })}
+        credential={taskModal.credential}
+        onAssignTask={handleAssignTask}
+      />
+
+      <CryptoValidModal
+        isOpen={cryptoModal.open}
+        onClose={() => setCryptoModal({ open: false, credential: null })}
+        credential={cryptoModal.credential}
+        publicKey={publicKey}
+        verificationResult={verificationResult}
+        verificationNote={verificationNote}
+        onVerify={handleVerify}
+        onSign={handleSign}
+        isVerifying={isVerifying}
+        isSigning={isSigning}
+        signingStep={signingStep}
+        onViewPdf={() => {
+          const cred = cryptoModal.credential;
+          if (cred?.student_certificate_pdf) {
+            setPdfModal({ open: true, url: cred.student_certificate_pdf, title: `${cred.name}'s PDF` });
+          }
+        }}
+        rating={rating}
+        onSetRating={setRating}
+        evaluationNotes={evaluationNotes}
+        onSetEvaluationNotes={setEvaluationNotes}
+      />
+
+      <CertificateModal
+        isOpen={certModal.open}
+        onClose={() => setCertModal({ open: false, credential: null })}
+        credential={certModal.credential}
+        publicKey={publicKey}
+        onIssueCertificate={handleIssueCertificate}
+        onIssueBonus={handleIssueBonus}
+        isIssuingCertificate={isIssuingCertificate}
+        isPaying={isPaying}
+        paymentError={paymentError}
+      />
     </div>
   );
 }
